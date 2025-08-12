@@ -84,11 +84,10 @@ def tradeFlows():
     taup = tau
     tau_hat = taup/tau
 
-    print(tau_hat)
-
     return tau_hat, tau
 
 tau_hat, tau = tradeFlows()
+
 
 def readParameters():
     G = pd.read_csv(r"data\original_data\IO.txt", sep="\t", header=None, names=products_all)
@@ -156,6 +155,8 @@ def domesticSales(xbilat, tau, GO):
 
     df1 = pd.concat(lst,keys=products_all).groupby(level=1, sort=False)
     GO = df1.max()
+    print("GO: \n", GO)
+
     domsales = GO - X
 
     print("domestic sales :\n", domsales)
@@ -163,8 +164,6 @@ def domesticSales(xbilat, tau, GO):
     return domsales, domsales.T
 
 domsales, domsales_aux = domesticSales(xbilat, tau, GO)
-
-print(domsales_aux)
 
 # Bilateral trade matrix
 
@@ -194,27 +193,27 @@ def bilateral_trade_matrix(domsales_aux, xbilat):
 
     xbilat = all_aux + xbilat
 
+    print("xbilat: \n", xbilat)
+
     return xbilat
 
 xbilat = bilateral_trade_matrix(domsales_aux, xbilat)
-xbilat.to_csv("tmp_xbilat.csv")
 
 def cumulcativeExpenditures(xbilat):
 
-    xbilat = bilateral_trade_matrix(domsales_aux, xbilat)
-
-    A = xbilat.T.sum()
+    A = xbilat.T.sum(axis=0)
+    print("A: \n", A)
 
     X0 = pd.DataFrame(0, index=products_all, columns=Countries)
 
     for i in products_all:
         product = [x for x in A.index if i in x]
         X0.loc[i,:] = A.loc[product].values
-    print(X0)
 
     return X0
 
 X0 = cumulcativeExpenditures(xbilat)
+
 
 def calculateExpenditureShares(xbilat):
 
@@ -255,4 +254,48 @@ def calcSuperavits(xbilat, tau):
         E.loc[i,:] = sum1.sum(axis=0).values
     print(E)
 
-calcSuperavits(xbilat, tau)
+    Sn = E.sum(axis=0) - M.sum(axis=00)
+    print(Sn)
+
+    return M, E, Sn
+
+M, E, Sn = calcSuperavits(xbilat, tau)
+
+
+def valueAdded(GO, B):
+    # Calculating Value Added
+    VAjn = GO * B
+    VAn = VAjn.sum()
+    print("Value Added: \n", VAn)   
+
+    return VAn
+
+VAn =valueAdded(GO, B)
+
+def moreValAdded(G,B,E):
+
+    df1 = pd.DataFrame(0, index=products_all, columns=Countries)
+    for i in Countries:
+        wantThese = [x for x in G.index if i in x]
+
+        x1 =  X0.loc[:,i].values.reshape(-1,1)
+        x2 = G.loc[wantThese,:]
+        x3 = B.loc[:,i].values.reshape(-1,1)
+        x4 = E.loc[:,i].values.reshape(-1,1)
+        x5 = (1-B.loc[:,i].values.reshape(-1,1)) * E.loc[:,i].values.reshape(-1,1)
+        x6 = x1 - np.matmul(x2, x5)
+
+        print(x6)
+
+        df1.loc[:,i] = x6.values
+
+    return df1
+df1 =moreValAdded(G,B,E)
+print(df1)
+
+df3 = pd.DataFrame(0, index=products_all, columns=Countries)
+for f in products_all:
+    wantThese = [x for x in Din.index if f in x]
+    df3.loc[f, :] = (Din.loc[wantThese, :]/tau.loc[wantThese, :]).sum(axis=1).values
+
+print(df3)
