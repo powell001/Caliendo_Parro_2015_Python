@@ -1,12 +1,14 @@
 import pandas as pd
 import os
 import numpy as np
+import warnings
+warnings.filterwarnings("ignore")
 
 os.chdir(r"C:\Users\jpark\vscode\Caliendo_Parro_2015_Python\\")
 
 vfactor = -0.2
 tol = 1E-07
-maxit = 1E+10
+maxit = 3
 
 J = 40
 N = 31
@@ -84,9 +86,9 @@ def tradeFlows():
     taup = tau
     tau_hat = taup/tau
 
-    return tau_hat, tau
+    return tau_hat, tau, taup
 
-tau_hat, tau = tradeFlows()
+tau_hat, tau, taup = tradeFlows()
 
 
 def readParameters():
@@ -255,6 +257,8 @@ def calcSuperavits(xbilat, tau):
     print(E)
 
     Sn = E.sum(axis=0) - M.sum(axis=00)
+
+    Sn = Sn.values.reshape(31,1)
     print(Sn)
 
     return M, E, Sn
@@ -267,6 +271,7 @@ def valueAdded(GO, B):
     VAjn = GO * B
     VAn = VAjn.sum()
     print("Value Added: \n", VAn)   
+    VAn = VAn.values.reshape(31,1)  
 
     return VAn
 
@@ -290,12 +295,190 @@ def moreValAdded(G,B,E):
         df1.loc[:,i] = x6.values
 
     return df1
-df1 =moreValAdded(G,B,E)
-print(df1)
+num = moreValAdded(G,B,E)
+print(num)
 
-df3 = pd.DataFrame(0, index=products_all, columns=Countries)
-for f in products_all:
-    wantThese = [x for x in Din.index if f in x]
-    df3.loc[f, :] = (Din.loc[wantThese, :]/tau.loc[wantThese, :]).sum(axis=1).values
+def alphas(X0, Din, tau, VAn, Sn):
 
-print(df3)
+    F = pd.DataFrame(0, index=products_all, columns=Countries)
+    for f in products_all:
+        wantThese = [x for x in Din.index if f in x]
+        F.loc[f, :] = (Din.loc[wantThese, :]/tau.loc[wantThese, :]).sum(axis=1).values
+
+    
+    # alphas
+    a1 = (X0*(1-F)).sum(axis=0).values.reshape(1,31)
+    a2 = Sn
+    a3 = VAn + a1.T - a2
+    a4 = np.repeat(a3.T, repeats=40, axis=0)
+    alphas = num/a4
+
+    ####
+    alphas[alphas < 0] = 0
+
+    print("alphas: \n", alphas)
+
+    #alphas = alphas.sum().values.reshape(1,-1)
+    #alphas = np.repeat(alphas, repeats=40, axis=0)
+
+    return alphas
+
+alphas = alphas(X0, Din, tau, VAn, Sn)
+print("alphas: ", alphas)
+
+#####################################
+# Main Equilibrium Function
+#####################################
+# Definitions of parameters
+# tau_hat: (1240,31), original tariff position, matrix of ones
+# taup: (1240,31), new tariff position, matrix of values to one or slightly greater
+# alphas: (40,31), not sure what these are
+# T (thetas), dispersion of productivity
+# B (40,31), share of value added
+# G (1240,40), IO coefficients
+# Din (1240,31), expenditure shares
+# J number of products, 40
+# N number of countries, 31
+# maxit 1E+10
+# tol 1E-07
+# VAn./100000: (31,1) value added
+# Sn./100000: (31,1)
+# vfactor
+
+
+###################################
+### PH
+###################################
+
+def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
+
+    # reformat theta vector
+    LT = np.repeat(T, repeats=N, axis=0)
+
+    # initizlize vectors of ex-post wages and price factors
+    wf0 = wages_N
+    pf0 = np.ones((J, N))
+
+    maxit = 1
+    pfmax = 1
+    it = 1
+
+    while (it <= 2): #and (pfmax > tol):
+        
+        # calculating log cost
+        lw = np.log(wf0)
+        lp = np.log(pf0)
+
+        #
+        lc = pd.DataFrame(0, index = products_all, columns = Countries)
+        for i, country in enumerate(Countries):
+            wantThese = [x for x in G.index if country in x]
+
+            a1 = np.matmul(B.loc[:,country].values.reshape(-1,1), lw[i].reshape(1,-1))
+            a2 = (1 - B.loc[:,country]).values.reshape(-1,1)
+            a3 = np.matmul((G.loc[wantThese,:]).T, lp[:,i].reshape(-1,1))
+
+            a100 = a1 + (a2 *  a3)
+
+            lc.loc[:,country] = a100.values
+
+        #print("lc: \n", lc)
+
+        #####################
+        c = np.exp(lc)
+        x7 = np.repeat(LT, repeats=N, axis=1)
+        x8 = tau_hat**x7
+        Din_om = Din * x8
+        ######################
+
+        phat = pd.DataFrame(0, index=products_all, columns=Countries)        
+       
+        for j in np.arange(J):
+            for n in np.arange(N):
+                 rows1 = n + j*N
+                 x9 = Din_om.iloc[rows1,].values.reshape(1,-1)
+                 #print(x9)
+
+                 x10 = c.iloc[j,:].values.reshape(1,-1)
+                 #print(x10)
+
+                 x11 = T.iloc[j].values.reshape(1,-1)
+                 #print(x11)
+
+                 x12 = (x10**(-1/x11)).T
+                 #print(x12)
+
+                 phat.iloc[j,n] = np.matmul(x9, x12) 
+                 #print(phat)
+
+                 if phat.iloc[j,n] == 0:
+                     phat.iloc[j,n] = 1 
+                 else:
+                     phat.iloc[j,n] = (phat.iloc[j,n])**(-x11)
+
+            if j == J:
+                print("j: = \n", j)
+
+        pfdev = np.abs(phat - pf0)
+        pf0 = phat.values
+        pfmax = pfdev.max().max()
+        it += 1
+
+        print("iteration: = ", it)
+
+        # print("pf0: \n", pf0)
+        # print("c: \n", c)
+    return pf0, c
+
+
+def Dinprime(Din, tau_hat, c, T, J, N):
+
+    #####
+    rows1 = [x + "_" + y for x in products_all  for y in Countries]
+    data = np.repeat(T.values.reshape(-1,1), repeats=N, axis=0)
+    LT = pd.Series(data.flatten(), index=rows1, name="LP")
+
+    #####
+    cp = pd.DataFrame(0, index = products_all, columns = Countries)
+    for i, country in enumerate(Countries):
+        y1 = c.iloc[:,i].values
+        y2 = (-1/T.values.flatten())
+        cp.iloc[:,i] = y1**y2
+    print(cp)
+
+    #####
+    x0 = np.repeat(LT.values.reshape(-1,1), repeats=N, axis=1)
+    print(x0)
+    x1 = tau_hat**(-1/x0)
+    Din_om = np.multiply(Din.values, x1)
+
+    pass
+
+
+
+
+
+
+def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, vfactor):
+
+    wf0 = np.ones((N, 1))
+    wfmax = 1
+    e = 1
+
+    while (e <= maxit) and (wfmax > tol):
+
+        pf0,c = PH(wf0,tau_hat,T,B,G,Din,J,N,maxit,tol)
+
+        # print("pf0 :\n", pf0, pf0.shape)
+        # print("c :\n", c)
+
+        # Calculate trade shares
+        Dinp = Dinprime(Din, tau_hat,c,T,J,N)
+
+
+
+        e += 1
+
+
+equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, vfactor)
+
