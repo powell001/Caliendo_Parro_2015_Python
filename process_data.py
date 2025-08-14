@@ -444,19 +444,73 @@ def Dinprime(Din, tau_hat, c, T, J, N):
         y1 = c.iloc[:,i].values
         y2 = (-1/T.values.flatten())
         cp.iloc[:,i] = y1**y2
-    print(cp)
 
     #####
     x0 = np.repeat(LT.values.reshape(-1,1), repeats=N, axis=1)
     print(x0)
     x1 = tau_hat**(-1/x0)
     Din_om = np.multiply(Din.values, x1)
+   
+    ######
+    idx = list(range(0, (J*N), N))
 
-    pass
+    DD = pd.DataFrame(0, index=rows1, columns=Countries)
+    for i in range(0, N):
+        idex = [x+i for x in idx]
+        DD.iloc[idex, :] = Din_om.iloc[idex, :].values * cp
+
+    ######
+    phat = (DD.T.sum(axis=0).T)**(1/LT)
+    phat = phat.values.reshape(-1,1)
+    print(phat, phat.shape)
+
+
+    ######
+    Dinp = pd.DataFrame(0, index=rows1, columns=Countries)
+    for i in range(0, N):
+        x1 = phat**(1/LT.values.reshape(-1,1))
+        Dinp.iloc[:, i] = DD.iloc[:, i].values.reshape(-1,1) * x1
+    print("Dinp: \n", Dinp, Dinp.shape)
+
+    ######
+    return Dinp
+
+def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
+
+    IA = pd.DataFrame(0, index=np.arange(J*N), columns=np.arange(J*N)) 
+    print("IA: \n", IA, IA.shape)
+    I_F = 1 - Fp.values
+
+    idx = list(range(0, (J*N), J))
+    print(idx)
+
+    for i in range(0, N):
+        kr = np.kron(alphas.iloc[:,i], I_F[:,i].T).reshape(J,J) #40x40
+        IA.iloc[i*J:(i+1)*J, i*J:(i+1)*J] = kr
+        print(IA)
+    IA.to_csv("tmp_IA.csv")
+
+    ########
+
+    Pit = Dinp/taup
+    print("Pit: \n", Pit, Pit.shape)
+
+    rows1 = [x + "_" + y for x in products_all  for y in Countries]
+    Bt = 1-B
+    BP = pd.DataFrame(0, index=rows1, columns=Countries)
+
+    for i in range(0, J):
+        x1 = np.kron(np.ones(N,), Bt.iloc[i,:]).reshape(N,N)
+        x2 = Pit.iloc[i*N:(i+1)*N, :].values.reshape(N,N)
+        BP.iloc[i*N:(i+1)*N, :] = np.multiply(x1, x2)
+
+    print("BP: \n", BP, BP.shape)
+
+        
 
 
 
-
+    None
 
 
 def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, vfactor):
@@ -472,8 +526,21 @@ def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, 
         # print("pf0 :\n", pf0, pf0.shape)
         # print("c :\n", c)
 
-        # Calculate trade shares
+        # Dinp Calculate trade shares
         Dinp = Dinprime(Din, tau_hat,c,T,J,N)
+        Dinp_om = Dinp/taup
+        print("Dinp_om: \n", Dinp_om, Dinp_om.shape)
+
+        # Fp
+        Fp = pd.DataFrame(0, index=products_all, columns=Countries)
+        rows1 = list(range(0, (J*N), N))
+    
+        for enum, i in enumerate(rows1):
+            print("i: ", i)
+            Fp.iloc[enum,:] = (Dinp.iloc[i:i+31,:]/taup.iloc[i:i+31,:]).T.sum()
+        print("Fp :\n", Fp)
+
+        PQ = expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N)
 
 
 
