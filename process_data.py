@@ -424,8 +424,6 @@ def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
         pfmax = pfdev.max().max()
         it += 1
 
-        print("iteration: = ", it)
-
         # print("pf0: \n", pf0)
         # print("c: \n", c)
     return pf0, c
@@ -447,7 +445,6 @@ def Dinprime(Din, tau_hat, c, T, J, N):
 
     #####
     x0 = np.repeat(LT.values.reshape(-1,1), repeats=N, axis=1)
-    print(x0)
     x1 = tau_hat**(-1/x0)
     Din_om = np.multiply(Din.values, x1)
    
@@ -462,7 +459,6 @@ def Dinprime(Din, tau_hat, c, T, J, N):
     ######
     phat = (DD.T.sum(axis=0).T)**(1/LT)
     phat = phat.values.reshape(-1,1)
-    print(phat, phat.shape)
 
 
     ######
@@ -470,7 +466,7 @@ def Dinprime(Din, tau_hat, c, T, J, N):
     for i in range(0, N):
         x1 = phat**(1/LT.values.reshape(-1,1))
         Dinp.iloc[:, i] = DD.iloc[:, i].values.reshape(-1,1) * x1
-    print("Dinp: \n", Dinp, Dinp.shape)
+
 
     ######
     return Dinp
@@ -478,11 +474,9 @@ def Dinprime(Din, tau_hat, c, T, J, N):
 def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
 
     IA = pd.DataFrame(0, index=np.arange(J*N), columns=np.arange(J*N)) 
-    print("IA: \n", IA, IA.shape)
     I_F = 1 - Fp.values
 
     idx = list(range(0, (J*N), J))
-    print(idx)
 
     for i in range(0, N):
         kr = np.kron(alphas.iloc[:,i], I_F[:,i].T).reshape(J,J) #40x40
@@ -493,7 +487,6 @@ def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
     ########
 
     Pit = Dinp/taup
-    print("Pit: \n", Pit, Pit.shape)
 
     rows1 = [x + "_" + y for x in products_all  for y in Countries]
     Bt = 1-B
@@ -504,11 +497,52 @@ def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
         x2 = Pit.iloc[i*N:(i+1)*N, :].values.reshape(N,N)
         BP.iloc[i*N:(i+1)*N, :] = np.multiply(x1, x2)
 
-    print("BP: \n", BP, BP.shape)
+    #########
 
-        
+    NBP = pd.DataFrame(0, index=rows1, columns=Countries)
+    NBP = NBP.T
+    
+    for j in range(1, N+1):
+        for n in range(1, N+1):
+            NBP.iloc[j-1, (n-1)*J : n*J] = BP.iloc[np.arange(n-1, J*N, N), j-1]
+
+    NNBP = np.kron(NBP.values, np.ones((J, 1))).reshape(J*N, J*N)
+   
+    # GG
+    GG = np.kron(np.ones((1, N)), G.values).reshape(J*N, J*N)
+
+    GP = np.multiply(NNBP, GG)   
+
+    OM = np.eye(J*N, J*N) - (GP + IA)
+
+    Vb = np.multiply(alphas,np.kron(np.ones((J,1)),np.multiply(wf0,VAn).T))
+    Vb = Vb.values.reshape(J*N,1, order='F')
+   
+    Bb = np.multiply(-alphas, np.multiply(Sn, np.ones((1,J))).T)
+    Bb = Bb.values.reshape(J*N,1, order='F')
+
+    DD1 = np.matmul(np.linalg.inv(OM), Vb)
+    DD2 = np.matmul(np.linalg.inv(OM), Bb)
+
+    PQ = DD1 + DD2
+    PQ = PQ.reshape(J, N, order='F')
 
 
+    return PQ
+
+def LMC(Xp, Dinp, J, N, B, VAL):
+
+    PQ_vec = Xp.T.reshape(J*N,1, order='F')
+    
+    rows1 = [x + "_" + y for x in products_all  for y in Countries]
+    
+    DDinput = pd.DataFrame(0, index=rows1, columns=Countries)
+    for i in range(0, N):
+        x1 = Dinp.iloc[:,i].values.reshape(-1,1)
+        x2 = PQ_vec
+        DDinput.iloc[:, i] = np.multiply(x1, x2)
+
+    DDinput.to_csv('tmp_DDinput.csv', index=False)
 
     None
 
@@ -542,10 +576,14 @@ def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, 
 
         PQ = expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N)
 
+        print("PQ: :", PQ, PQ.shape)
+
+        wf1 = LMC(PQ, Dinp, J, N, B, VAn)
+
 
 
         e += 1
 
 
-equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, vfactor)
+equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
 
