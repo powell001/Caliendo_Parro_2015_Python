@@ -6,9 +6,15 @@ warnings.filterwarnings("ignore")
 
 os.chdir(r"C:\Users\jpark\vscode\Caliendo_Parro_2015_Python\\")
 
+####################
+# Original Code
+####################
+# https://www.google.com/url?q=https%3A%2F%2Fspinup-000d1a-wp-offload-media.s3.amazonaws.com%2Ffaculty%2Fwp-content%2Fuploads%2Fsites%2F40%2F2019%2F06%2FData_and_Codes_CP.zip&sa=D&sntz=1&usg=AOvVaw1aBDWNSnxgj3WXRaEFwimj
+
+
 vfactor = -0.2
 tol = 1E-07
-maxit = 3
+maxit = 1E+10
 
 J = 40
 N = 31
@@ -29,8 +35,6 @@ final = ['Agriculture','Mining','Food','Textile','Wood','Paper','Petroleum','Che
 intermediate = ['Electricity','Construction','Retail','Hotels','LandTransport','WaterTransport','AirTransport','AuxTransport','Post','Finance','RealState','RentingMach',
                 'Computer','R&D','OtherBusiness','Public', 'Education','Health','Otherservices','Private']
 
-print(len(Countries), len(final), 31*40)
-
 
 def bilaterExports():
 
@@ -38,8 +42,6 @@ def bilaterExports():
     # load trade flows
     xbilat1993 = pd.read_csv(r"data\original_data\xbilat1993.txt", sep='\t', header=None, names=Countries)
     xbilat1993.index = rows1
-    print(xbilat1993)
-    xbilat1993.to_csv("tmp.csv")
 
     xbilat1993 = xbilat1993 * 1000
 
@@ -49,8 +51,6 @@ def bilaterExports():
 
     # combine
     xbilat1993 = pd.concat([xbilat1993, intermediate_df])
-
-    print(xbilat1993)
 
     return xbilat1993
 
@@ -94,17 +94,14 @@ tau_hat, tau, taup = tradeFlows()
 def readParameters():
     G = pd.read_csv(r"data\original_data\IO.txt", sep="\t", header=None, names=products_all)
     G.index = [x + "_" + y for x in Countries for y in products_all]
-    print("(G) IO Table: \n", G)
 
     B = pd.read_csv(r"data\original_data\B.txt", sep="\t", header=None, names=Countries)
     B.columns = Countries
     B.index = products_all
-    print("B Table: \n", B)
 
     GO = pd.read_csv(r"data\original_data\GO.txt", sep="\t", header=None, names=Countries)
     GO.columns = Countries
     GO.index = products_all
-    print("GO Table: \n", GO)
 
     T = pd.read_csv(r"data\original_data\T.txt", sep="\t", header=None)
     T = 1/T
@@ -113,7 +110,6 @@ def readParameters():
     T = pd.concat([T, T_df])
 
     T.index = products_all
-    print("T Table: \n", T)
 
     return G, B, GO, T
 
@@ -123,7 +119,7 @@ G, B, GO, T = readParameters()
 def calculateExpenditures(xbilat1993, tau):
     # calculating expenditures
     xbilat1993 = xbilat1993 * tau
-    print("Expenditures \n",xbilat1993)
+    #print("Expenditures \n",xbilat1993)
 
     return xbilat1993
 
@@ -142,7 +138,7 @@ def domesticSales(xbilat, tau, GO):
     xbilat_domestic = xbilat/tau
 
     xbilat_domestic.to_csv("tmpxbilat_domestic.csv")
-    print("bilat domestic \n", xbilat_domestic)
+    #print("bilat domestic \n", xbilat_domestic)
 
     for i in products_all:
         product = [x for x in xbilat_domestic.index if x.startswith(i)]
@@ -157,11 +153,11 @@ def domesticSales(xbilat, tau, GO):
 
     df1 = pd.concat(lst,keys=products_all).groupby(level=1, sort=False)
     GO = df1.max()
-    print("GO: \n", GO)
+    #print("GO: \n", GO)
 
     domsales = GO - X
 
-    print("domestic sales :\n", domsales)
+    #print("domestic sales :\n", domsales)
 
     return domsales, domsales.T
 
@@ -180,7 +176,7 @@ def bilateral_trade_matrix(domsales_aux, xbilat):
         country1 = domsales_aux[i]
         product = [x for x in aux2.index if i in x]
 
-        print(aux2.loc[product, :])
+        #print(aux2.loc[product, :])
         section = aux2.loc[product, :]
 
         np.fill_diagonal(section.values, country1.values)
@@ -188,14 +184,9 @@ def bilateral_trade_matrix(domsales_aux, xbilat):
 
     all_aux = pd.concat(sections)
 
-    all_aux.to_csv("tmp_all_aux.csv")
-
     # combine internal and external trade
-    print(all_aux.shape, xbilat.shape)
 
     xbilat = all_aux + xbilat
-
-    print("xbilat: \n", xbilat)
 
     return xbilat
 
@@ -204,7 +195,7 @@ xbilat = bilateral_trade_matrix(domsales_aux, xbilat)
 def cumulcativeExpenditures(xbilat):
 
     A = xbilat.T.sum(axis=0)
-    print("A: \n", A)
+    #print("A: \n", A)
 
     X0 = pd.DataFrame(0, index=products_all, columns=Countries)
 
@@ -232,7 +223,6 @@ def calculateExpenditureShares(xbilat):
     return Din
 
 Din = calculateExpenditureShares(xbilat)
-print(Din)
 
 
 def calcSuperavits(xbilat, tau):
@@ -246,21 +236,18 @@ def calcSuperavits(xbilat, tau):
         wantThese = [x for x in xbilattau.index if i in x]
         sum1 = xbilattau.loc[wantThese, :]
         M.loc[i,:] = sum1.sum(axis=1).T.values
-    print(M)
-
+   
     E = pd.DataFrame(0, index=products_all, columns=Countries)
 
     for i in products_all:
         wantThese = [x for x in xbilattau.index if i in x]
         sum1 = xbilattau.loc[wantThese, :]
         E.loc[i,:] = sum1.sum(axis=0).values
-    print(E)
 
-    Sn = E.sum(axis=0) - M.sum(axis=00)
+    Sn = E.sum(axis=0) - M.sum(axis=0)
 
     Sn = Sn.values.reshape(31,1)
-    print(Sn)
-
+   
     return M, E, Sn
 
 M, E, Sn = calcSuperavits(xbilat, tau)
@@ -270,7 +257,7 @@ def valueAdded(GO, B):
     # Calculating Value Added
     VAjn = GO * B
     VAn = VAjn.sum()
-    print("Value Added: \n", VAn)   
+      
     VAn = VAn.values.reshape(31,1)  
 
     return VAn
@@ -290,13 +277,11 @@ def moreValAdded(G,B,E):
         x5 = (1-B.loc[:,i].values.reshape(-1,1)) * E.loc[:,i].values.reshape(-1,1)
         x6 = x1 - np.matmul(x2, x5)
 
-        print(x6)
-
         df1.loc[:,i] = x6.values
 
     return df1
 num = moreValAdded(G,B,E)
-print(num)
+
 
 def alphas(X0, Din, tau, VAn, Sn):
 
@@ -305,7 +290,6 @@ def alphas(X0, Din, tau, VAn, Sn):
         wantThese = [x for x in Din.index if f in x]
         F.loc[f, :] = (Din.loc[wantThese, :]/tau.loc[wantThese, :]).sum(axis=1).values
 
-    
     # alphas
     a1 = (X0*(1-F)).sum(axis=0).values.reshape(1,31)
     a2 = Sn
@@ -316,7 +300,7 @@ def alphas(X0, Din, tau, VAn, Sn):
     ####
     alphas[alphas < 0] = 0
 
-    print("alphas: \n", alphas)
+    #print("alphas: \n", alphas)
 
     #alphas = alphas.sum().values.reshape(1,-1)
     #alphas = np.repeat(alphas, repeats=40, axis=0)
@@ -324,7 +308,7 @@ def alphas(X0, Din, tau, VAn, Sn):
     return alphas
 
 alphas = alphas(X0, Din, tau, VAn, Sn)
-print("alphas: ", alphas)
+#print("alphas: ", alphas)
 
 #####################################
 # Main Equilibrium Function
@@ -359,7 +343,7 @@ def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
     wf0 = wages_N
     pf0 = np.ones((J, N))
 
-    maxit = 1
+ 
     pfmax = 1
     it = 1
 
@@ -382,7 +366,7 @@ def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
 
             lc.loc[:,country] = a100.values
 
-        #print("lc: \n", lc)
+        ##print("lc: \n", lc)
 
         #####################
         c = np.exp(lc)
@@ -397,19 +381,19 @@ def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
             for n in np.arange(N):
                  rows1 = n + j*N
                  x9 = Din_om.iloc[rows1,].values.reshape(1,-1)
-                 #print(x9)
+                 ##print(x9)
 
                  x10 = c.iloc[j,:].values.reshape(1,-1)
-                 #print(x10)
+                 ##print(x10)
 
                  x11 = T.iloc[j].values.reshape(1,-1)
-                 #print(x11)
+                 ##print(x11)
 
                  x12 = (x10**(-1/x11)).T
-                 #print(x12)
+                 ##print(x12)
 
                  phat.iloc[j,n] = np.matmul(x9, x12) 
-                 #print(phat)
+                 ##print(phat)
 
                  if phat.iloc[j,n] == 0:
                      phat.iloc[j,n] = 1 
@@ -424,8 +408,8 @@ def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
         pfmax = pfdev.max().max()
         it += 1
 
-        # print("pf0: \n", pf0)
-        # print("c: \n", c)
+        # #print("pf0: \n", pf0)
+        # #print("c: \n", c)
     return pf0, c
 
 
@@ -481,7 +465,7 @@ def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
     for i in range(0, N):
         kr = np.kron(alphas.iloc[:,i], I_F[:,i].T).reshape(J,J) #40x40
         IA.iloc[i*J:(i+1)*J, i*J:(i+1)*J] = kr
-        print(IA)
+        #print(IA)
     IA.to_csv("tmp_IA.csv")
 
     ########
@@ -492,19 +476,25 @@ def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
     Bt = 1-B
     BP = pd.DataFrame(0, index=rows1, columns=Countries)
 
+
+ 
     for i in range(0, J):
         x1 = np.kron(np.ones(N,), Bt.iloc[i,:]).reshape(N,N)
         x2 = Pit.iloc[i*N:(i+1)*N, :].values.reshape(N,N)
         BP.iloc[i*N:(i+1)*N, :] = np.multiply(x1, x2)
 
+    
     #########
 
     NBP = pd.DataFrame(0, index=rows1, columns=Countries)
     NBP = NBP.T
-    
-    for j in range(1, N+1):
-        for n in range(1, N+1):
-            NBP.iloc[j-1, (n-1)*J : n*J] = BP.iloc[np.arange(n-1, J*N, N), j-1]
+
+    for enum1, i in enumerate(Countries):
+        allcountries = []
+        for enum2, j in enumerate(Countries):
+            x1 = BP.iloc[enum2::N, enum1]
+            x2 = allcountries.append(x1)
+        NBP.iloc[enum1, :] = np.concatenate(allcountries, axis=0)
 
     NNBP = np.kron(NBP.values, np.ones((J, 1))).reshape(J*N, J*N)
    
@@ -544,7 +534,16 @@ def LMC(Xp, Dinp, J, N, B, VAL):
 
     DDinput.to_csv('tmp_DDinput.csv', index=False)
 
-    None
+    DDDinput = pd.DataFrame(0, index=products_all, columns=Countries)
+    for n in range(0, J):
+        x1 = DDinput.iloc[n*N:(n+1)*N, :].values.reshape(N, -1)
+        DDDinput.iloc[n, :] = x1.sum(axis=0)
+
+    aux4 = np.multiply(B, DDDinput)
+    aux5 = aux4.sum(axis=0)
+    wf0 = np.multiply((1/VAL), aux5.values.reshape(-1,1))
+    
+    return wf0
 
 
 def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, vfactor):
@@ -557,33 +556,96 @@ def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, 
 
         pf0,c = PH(wf0,tau_hat,T,B,G,Din,J,N,maxit,tol)
 
-        # print("pf0 :\n", pf0, pf0.shape)
-        # print("c :\n", c)
+        # #print("pf0 :\n", pf0, pf0.shape)
+        # #print("c :\n", c)
 
         # Dinp Calculate trade shares
         Dinp = Dinprime(Din, tau_hat,c,T,J,N)
         Dinp_om = Dinp/taup
-        print("Dinp_om: \n", Dinp_om, Dinp_om.shape)
+        #print("Dinp_om: \n", Dinp_om, Dinp_om.shape)
 
         # Fp
         Fp = pd.DataFrame(0, index=products_all, columns=Countries)
         rows1 = list(range(0, (J*N), N))
     
         for enum, i in enumerate(rows1):
-            print("i: ", i)
+            #print("i: ", i)
             Fp.iloc[enum,:] = (Dinp.iloc[i:i+31,:]/taup.iloc[i:i+31,:]).T.sum()
-        print("Fp :\n", Fp)
+        #print("Fp :\n", Fp)
 
         PQ = expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N)
 
-        print("PQ: :", PQ, PQ.shape)
+        #print("PQ: :", PQ, PQ.shape)
 
         wf1 = LMC(PQ, Dinp, J, N, B, VAn)
 
+        # Excess function
+        ZW = wf1 - wf0
 
+        PQ_vec = PQ.T.reshape(J*N,1, order='F')
+
+        rows1 = [x + "_" + y for x in products_all  for y in Countries]
+        DP = pd.DataFrame(0, index=rows1, columns=Countries)
+        for n in range(0, N):
+            DP.iloc[:,n] = np.multiply(Dinp_om.iloc[:,n].values.reshape(-1,1), PQ_vec)
+
+        LHS = DP.sum(axis=0).T.values.reshape(-1,1)
+
+        # calculate RHS (Imports) trade balance
+        PF = np.multiply(PQ, Fp)
+        # imports
+        RHS = PF.sum(axis=0).values.reshape(-1,1)
+
+        # excess function (trade balance)
+        Snp = RHS - LHS + Sn
+        ZW2 = -(RHS - LHS + Sn)/(VAn)
+
+        #print("Snp: \n", Snp, Snp.shape)
+
+        #interation factor prices
+        wf1 = np.multiply(wf0, (1-vfactor*ZW2/wf0))
+
+        wfmax = np.abs(wf1 - wf0).sum()
+        wfmax = np.abs(Snp).sum()
+
+        wfmax0 = wfmax.copy()
+        wf0=wf1.copy()
 
         e += 1
 
+        return wf0, pf0, PQ, Fp, Dinp, ZW, Snp
 
-equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
+##############################
+##############################
+##############################
 
+wf0, pf0, PQ, Fp, Dinp, ZW, Snp = equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
+
+
+# expenditures Xji in long vector: PQ_vec=(X11 X12 X13...)' 
+print("wf0: \n", wf0)
+
+PQ_vec = PQ.T.reshape(1, J*N, order='F')
+Dinp_om = Dinp/taup
+
+xbilattau = np.multiply(Dinp_om, np.multiply(PQ_vec.T, np.ones(N)))
+xbilatp = np.multiply(xbilattau, taup)
+xbilatp.to_csv("tmp_xbilatpx.csv")
+
+for j in range(J):
+    GO.iloc[j:, :] = xbilattau.iloc[j*N:(j+1)*N, :].sum()
+
+print("GO: \n", GO, GO.shape)
+
+for n in range(J):
+    x1 = xbilatp.iloc[n*N:(n+1)*N, :].values.reshape(N,N)
+    np.fill_diagonal(x1, 0)
+    print(x1)
+    xbilatp.iloc[n*N:(n+1)*N, :] = x1
+    
+
+pd.DataFrame.to_csv(xbilatp, "xbilatp.csv")
+pd.DataFrame.to_csv(Dinp, "Dinp.csv")
+pd.DataFrame.to_csv(xbilattau, "xbilattau.csv")
+pd.DataFrame.to_csv(alphas, "alphas.csv")
+pd.DataFrame.to_csv(GO, "GO.csv")
