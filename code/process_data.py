@@ -123,26 +123,26 @@ def readParameters():
     # Each country stacked upon one another
     # Diagonal values will be high, an industry uses a lot of it's own production as an input.
     # Shares of a product value from itself and other products (inputs)
-    G = pd.read_csv(r"data\original_data\IO.txt", sep="\t", header=None, names=products_all)
-    G.index = [x + "_" + y for x in Countries for y in products_all]
-    G.to_csv("tmp_G.csv")
+    IO_share = pd.read_csv(r"data\original_data\IO.txt", sep="\t", header=None, names=products_all)
+    IO_share.index = [x + "_" + y for x in Countries for y in products_all]
+    IO_share.to_csv("tmp_IO_share.csv")
 
     # Share of value added for each country and each product
     # A number between 0 and 1, Private is 1
     # Products (rows) and countries (columns)
     # Percentage of value that a sector adds directly to an economy
-    B = pd.read_csv(r"data\original_data\B.txt", sep="\t", header=None, names=Countries)
-    B.columns = Countries
-    B.index = products_all
-    B.to_csv("tmp_B.csv")
+    Value_Added_Share = pd.read_csv(r"data\original_data\B.txt", sep="\t", header=None, names=Countries)
+    Value_Added_Share.columns = Countries
+    Value_Added_Share.index = products_all
+    Value_Added_Share.to_csv("tmp_Value_Added_Share.csv")
 
     # Gross Output: is a macroeconomic measure representing the total value of goods and services produced in an economy or 
     # by an industry during an accounting period, including sales to final consumers (which contribute to Gross Domestic Product)
     # and sales to other industries (intermediate inputs). 
-    GO = pd.read_csv(r"data\original_data\GO.txt", sep="\t", header=None, names=Countries)
-    GO.columns = Countries
-    GO.index = products_all
-    GO.to_csv("tmp_GO.csv")
+    GrossOutput = pd.read_csv(r"data\original_data\GO.txt", sep="\t", header=None, names=Countries)
+    GrossOutput.columns = Countries
+    GrossOutput.index = products_all
+    GrossOutput.to_csv("tmp_GrossOutput.csv")
 
     # Thetas, dispersion of productivity
     # Twenty values, one for each final industry, however, 8.22 is used for the intermediate goods
@@ -155,9 +155,9 @@ def readParameters():
     # add product names, all 40
     T.index = products_all
 
-    return G, B, GO, T
+    return IO_share, Value_Added_Share, GrossOutput, T
 
-G, B, GO, T = readParameters()
+IO_share, Value_Added_Share, GrossOutput, T = readParameters()
 
 def calculateExpenditures(xbilat1993, tau):
     # calculating expenditures
@@ -168,7 +168,7 @@ def calculateExpenditures(xbilat1993, tau):
 
 xbilat = calculateExpenditures(xbilat1993, tau)
 
-def domesticSales(xbilat, tau, GO):
+def domesticSales(xbilat, tau, GrossOutput):
 
     #################################################
     # Gross Output = GDP (Value added) + intermediate production
@@ -192,34 +192,35 @@ def domesticSales(xbilat, tau, GO):
         X.loc[i] = xbilat_domestic.loc[product].sum(axis=0)
 
     # is X intermediate goods? I think so
-    lst = [X, GO]
+    lst = [X, GrossOutput]
 
     X.to_csv("tmp_X.csv")
-    GO.to_csv("tmp_GO.csv")
+    GrossOutput.to_csv("tmp_GrossOutput.csv")
 
-    # if X expenditure greater than GO gross output, choose GO, else choose expenditure
+    # if X expenditure greater than GrossOutput gross output, choose GrossOutput, else choose expenditure
     # if Exports greater than Gross Output?
     # are you buying more or less than producing?
 
     df1 = pd.concat(lst,keys=products_all).groupby(level=1, sort=False)
-    GO = df1.max()
-    #print("GO: \n", GO)
+    GrossOutput = df1.max()
+    #print("GrossOutput: \n", GrossOutput)
 
     # can exports (adjusted) be greater than gross output?
+    # I think some GrossOutput are zero
 
     df1 = pd.concat(lst,keys=products_all).groupby(level=1, sort=False)
-    GO_tmp = df1.max()
+    GrossOutput_tmp = df1.max()
 
-    GO_tmp.to_csv("tmp_GO_tmp.csv")
+    GrossOutput_tmp.to_csv("tmp_GrossOutput_tmp.csv")
 
     # Gross Output - Exports
-    domsales = GO_tmp - X
+    domsales = GrossOutput_tmp - X
 
     #print("domestic sales :\n", domsales)
 
     return domsales, domsales.T
 
-domsales, domsales_aux = domesticSales(xbilat, tau, GO)
+domsales, domsales_aux = domesticSales(xbilat, tau, GrossOutput)
 
 # Bilateral trade matrix
 
@@ -330,39 +331,39 @@ def calcSuperavits(xbilat, tau):
 M, E, Sn = calcSuperavits(xbilat, tau)
 
 
-def valueAdded(GO, B):
+def valueAdded(GrossOutput, Value_Added_Share):
     # Calculating Value Added
-    VAjn = GO * B
+    VAjn = GrossOutput * Value_Added_Share
     VAn = VAjn.sum()
       
     VAn = VAn.values.reshape(31,1)  
 
     return VAn
 
-VAn =valueAdded(GO, B)
+VAn =valueAdded(GrossOutput, Value_Added_Share)
 
-def moreValAdded(X0,G,B,E):
+def moreValAdded(X0,IO_share,Value_Added_Share,E):
 
     # X0 cummulative expenditures
-    # G, IO table, intermediate goods, shares
-    # B value added, shares
+    # IO_share, IO table, intermediate goods, shares
+    # Value_Added_Share value added, shares
     # E domestic sales
 
     df1 = pd.DataFrame(0, index=products_all, columns=Countries)
     for i in Countries:
-        wantThese = [x for x in G.index if i in x]
+        wantThese = [x for x in IO_share.index if i in x]
 
         x1 =  X0.loc[:,i].values.reshape(-1,1)
-        x2 = G.loc[wantThese,:]
-        x3 = B.loc[:,i].values.reshape(-1,1)
+        x2 = IO_share.loc[wantThese,:]
+        x3 = Value_Added_Share.loc[:,i].values.reshape(-1,1)
         x4 = E.loc[:,i].values.reshape(-1,1)
-        x5 = (1-B.loc[:,i].values.reshape(-1,1)) * E.loc[:,i].values.reshape(-1,1)
+        x5 = (1-Value_Added_Share.loc[:,i].values.reshape(-1,1)) * E.loc[:,i].values.reshape(-1,1)
         x6 = x1 - np.matmul(x2, x5)
 
         df1.loc[:,i] = x6.values
 
     return df1
-num = moreValAdded(X0,G,B,E)
+num = moreValAdded(X0,IO_share,Value_Added_Share,E)
 
 
 def alphas(X0, Din, tau, VAn, Sn):
@@ -400,8 +401,8 @@ alphas = alphas(X0, Din, tau, VAn, Sn)
 # taup: (1240,31), new tariff position, matrix of values to one or slightly greater
 # alphas: (40,31), not sure what these are
 # T (thetas), dispersion of productivity
-# B (40,31), share of value added
-# G (1240,40), IO coefficients
+# Value_Added_Share (40,31), share of value added
+# IO_share (1240,40), IO coefficients
 # Din (1240,31), expenditure shares
 # J number of products, 40
 # N number of countries, 31
@@ -416,7 +417,7 @@ alphas = alphas(X0, Din, tau, VAn, Sn)
 ### PH
 ###################################
 
-def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
+def PH(wages_N,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol):
 
     # reformat theta vector
     LT = np.repeat(T, repeats=N, axis=0)
@@ -438,11 +439,11 @@ def PH(wages_N,tau_hat,T,B,G,Din,J,N,maxit,tol):
         #
         lc = pd.DataFrame(0, index = products_all, columns = Countries)
         for i, country in enumerate(Countries):
-            wantThese = [x for x in G.index if country in x]
+            wantThese = [x for x in IO_share.index if country in x]
 
-            a1 = np.matmul(B.loc[:,country].values.reshape(-1,1), lw[i].reshape(1,-1))
-            a2 = (1 - B.loc[:,country]).values.reshape(-1,1)
-            a3 = np.matmul((G.loc[wantThese,:]).T, lp[:,i].reshape(-1,1))
+            a1 = np.matmul(Value_Added_Share.loc[:,country].values.reshape(-1,1), lw[i].reshape(1,-1))
+            a2 = (1 - Value_Added_Share.loc[:,country]).values.reshape(-1,1)
+            a3 = np.matmul((IO_share.loc[wantThese,:]).T, lp[:,i].reshape(-1,1))
 
             a100 = a1 + (a2 *  a3)
 
@@ -537,7 +538,7 @@ def Dinprime(Din, tau_hat, c, T, J, N):
     ######
     return Dinp
 
-def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
+def expenditure(alphas,Value_Added_Share,IO_share,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
 
     IA = pd.DataFrame(0, index=np.arange(J*N), columns=np.arange(J*N)) 
     I_F = 1 - Fp.values
@@ -555,46 +556,46 @@ def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
     Pit = Dinp/taup
 
     rows1 = [x + "_" + y for x in products_all  for y in Countries]
-    Bt = 1-B
-    BP = pd.DataFrame(0, index=rows1, columns=Countries)
+    Value_Added_Sharet = 1-Value_Added_Share
+    Value_Added_ShareP = pd.DataFrame(0, index=rows1, columns=Countries)
 
 
  
     for i in range(0, J):
-        x1 = np.kron(np.ones(N,), Bt.iloc[i,:]).reshape(N,N)
+        x1 = np.kron(np.ones(N,), Value_Added_Sharet.iloc[i,:]).reshape(N,N)
         x2 = Pit.iloc[i*N:(i+1)*N, :].values.reshape(N,N)
-        BP.iloc[i*N:(i+1)*N, :] = np.multiply(x1, x2)
+        Value_Added_ShareP.iloc[i*N:(i+1)*N, :] = np.multiply(x1, x2)
 
     
     #########
 
-    NBP = pd.DataFrame(0, index=rows1, columns=Countries)
-    NBP = NBP.T
+    NValue_Added_ShareP = pd.DataFrame(0, index=rows1, columns=Countries)
+    NValue_Added_ShareP = NValue_Added_ShareP.T
 
     for enum1, i in enumerate(Countries):
         allcountries = []
         for enum2, j in enumerate(Countries):
-            x1 = BP.iloc[enum2::N, enum1]
+            x1 = Value_Added_ShareP.iloc[enum2::N, enum1]
             x2 = allcountries.append(x1)
-        NBP.iloc[enum1, :] = np.concatenate(allcountries, axis=0)
+        NValue_Added_ShareP.iloc[enum1, :] = np.concatenate(allcountries, axis=0)
 
-    NNBP = np.kron(NBP.values, np.ones((J, 1))).reshape(J*N, J*N)
+    NNValue_Added_ShareP = np.kron(NValue_Added_ShareP.values, np.ones((J, 1))).reshape(J*N, J*N)
    
     # GG
-    GG = np.kron(np.ones((1, N)), G.values).reshape(J*N, J*N)
+    GG = np.kron(np.ones((1, N)), IO_share.values).reshape(J*N, J*N)
 
-    GP = np.multiply(NNBP, GG)   
+    GP = np.multiply(NNValue_Added_ShareP, GG)   
 
     OM = np.eye(J*N, J*N) - (GP + IA)
 
     Vb = np.multiply(alphas,np.kron(np.ones((J,1)),np.multiply(wf0,VAn).T))
     Vb = Vb.values.reshape(J*N,1, order='F')
    
-    Bb = np.multiply(-alphas, np.multiply(Sn, np.ones((1,J))).T)
-    Bb = Bb.values.reshape(J*N,1, order='F')
+    Value_Added_Shareb = np.multiply(-alphas, np.multiply(Sn, np.ones((1,J))).T)
+    Value_Added_Shareb = Value_Added_Shareb.values.reshape(J*N,1, order='F')
 
     DD1 = np.matmul(np.linalg.inv(OM), Vb)
-    DD2 = np.matmul(np.linalg.inv(OM), Bb)
+    DD2 = np.matmul(np.linalg.inv(OM), Value_Added_Shareb)
 
     PQ = DD1 + DD2
     PQ = PQ.reshape(J, N, order='F')
@@ -602,7 +603,7 @@ def expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
 
     return PQ
 
-def LMC(Xp, Dinp, J, N, B, VAL):
+def LMC(Xp, Dinp, J, N, Value_Added_Share, VAL):
 
     PQ_vec = Xp.T.reshape(J*N,1, order='F')
     
@@ -621,14 +622,14 @@ def LMC(Xp, Dinp, J, N, B, VAL):
         x1 = DDinput.iloc[n*N:(n+1)*N, :].values.reshape(N, -1)
         DDDinput.iloc[n, :] = x1.sum(axis=0)
 
-    aux4 = np.multiply(B, DDDinput)
+    aux4 = np.multiply(Value_Added_Share, DDDinput)
     aux5 = aux4.sum(axis=0)
     wf0 = np.multiply((1/VAL), aux5.values.reshape(-1,1))
     
     return wf0
 
 
-def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, vfactor):
+def equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N, maxit, tol, VAn, Sn, vfactor):
 
     wf0 = np.ones((N, 1))
     wfmax = 1
@@ -636,7 +637,7 @@ def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, 
 
     while (e <= maxit) and (wfmax > tol):
 
-        pf0,c = PH(wf0,tau_hat,T,B,G,Din,J,N,maxit,tol)
+        pf0,c = PH(wf0,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol)
 
         # #print("pf0 :\n", pf0, pf0.shape)
         # #print("c :\n", c)
@@ -655,11 +656,11 @@ def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, 
             Fp.iloc[enum,:] = (Dinp.iloc[i:i+31,:]/taup.iloc[i:i+31,:]).T.sum()
         #print("Fp :\n", Fp)
 
-        PQ = expenditure(alphas,B,G,Dinp,taup,Fp,VAn,wf0,Sn,J,N)
+        PQ = expenditure(alphas,Value_Added_Share,IO_share,Dinp,taup,Fp,VAn,wf0,Sn,J,N)
 
         #print("PQ: :", PQ, PQ.shape)
 
-        wf1 = LMC(PQ, Dinp, J, N, B, VAn)
+        wf1 = LMC(PQ, Dinp, J, N, Value_Added_Share, VAn)
 
         # Excess function
         ZW = wf1 - wf0
@@ -701,7 +702,7 @@ def equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn, Sn, 
 ##############################
 ##############################
 
-wf0, pf0, PQ, Fp, Dinp, ZW, Snp = equilibrium(tau_hat, taup, alphas, T, B, G, Din, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
+wf0, pf0, PQ, Fp, Dinp, ZW, Snp = equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
 
 
 # expenditures Xji in long vector: PQ_vec=(X11 X12 X13...)' 
@@ -715,9 +716,9 @@ xbilatp = np.multiply(xbilattau, taup)
 xbilatp.to_csv("tmp_xbilatpx.csv")
 
 for j in range(J):
-    GO.iloc[j:, :] = xbilattau.iloc[j*N:(j+1)*N, :].sum()
+    GrossOutput.iloc[j:, :] = xbilattau.iloc[j*N:(j+1)*N, :].sum()
 
-print("GO: \n", GO, GO.shape)
+print("GrossOutput: \n", GrossOutput, GrossOutput.shape)
 
 for n in range(J):
     x1 = xbilatp.iloc[n*N:(n+1)*N, :].values.reshape(N,N)
@@ -730,4 +731,4 @@ pd.DataFrame.to_csv(xbilatp, "xbilatp.csv")
 pd.DataFrame.to_csv(Dinp, "Dinp.csv")
 pd.DataFrame.to_csv(xbilattau, "xbilattau.csv")
 pd.DataFrame.to_csv(alphas, "alphas.csv")
-pd.DataFrame.to_csv(GO, "GO.csv")
+pd.DataFrame.to_csv(GrossOutput, "GrossOutput.csv")
