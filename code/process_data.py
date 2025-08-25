@@ -66,53 +66,53 @@ def Tariffs():
 
     # Tariffs are per country per sector and applied to each country
 
-    tau1993 = pd.read_csv(r"data\original_data\tariffs1993.txt", sep="\t", header=None, names=Countries)
+    tariffs_1993 = pd.read_csv(r"data\original_data\tariffs1993.txt", sep="\t", header=None, names=Countries)
     rows1 = [x + "_" + y for x in final for y in Countries]
-    tau1993.index = rows1
+    tariffs_1993.index = rows1
 
-    tau2005 = pd.read_csv(r"data\original_data\tariffs2005.txt", sep="\t", header=None, names=Countries)
+    tariffs_2005 = pd.read_csv(r"data\original_data\tariffs2005.txt", sep="\t", header=None, names=Countries)
     rows1 = [x + "_" + y for x in final for y in Countries]
-    tau2005.index = rows1
+    tariffs_2005.index = rows1
 
     ###########################
-    # tau1993
+    # tariffs_1993
     # final product tariffs 1993
-    tau = tau1993/100
-    tau += 1
+    tariffs_ = tariffs_1993/100
+    tariffs_ += 1
 
     # intermediate goods tariffs 1993
     # ? Intermediate goods are not subject to tariffs
     rows1 = [x + "_" + y for x in intermediate for y in Countries]
-    tau_df = pd.DataFrame(1, index = rows1, columns=Countries)
+    tariffs__df = pd.DataFrame(1, index = rows1, columns=Countries)
     
     # combine final and intermediate goods
-    tau = pd.concat([tau, tau_df])
+    tariffs_ = pd.concat([tariffs_, tariffs__df])
 
     #############################
-    # tau2005
-    taup = tau2005/100
-    taup += 1
+    # tariffs_2005
+    tariffs_policy = tariffs_2005/100
+    tariffs_policy += 1
 
     rows1 = [x + "_" + y for x in intermediate for y in Countries]
-    tau_df = pd.DataFrame(0, index = rows1, columns=Countries)
+    tariffs__df = pd.DataFrame(0, index = rows1, columns=Countries)
     
     # combine final and intermediate goods
-    taup = pd.concat([tau, tau_df])
+    tariffs_policy = pd.concat([tariffs_, tariffs__df])
 
     # weird
-    # tau is combined final and intermediate goods tariffs for 1993
-    # taup is combined final and intermediate good tariffs for 2005
-    # tau_hat is a matrix of all ones
-    taup = tau
-    tau_hat = taup/tau
+    # tariffs_ is combined final and intermediate goods tariffs for 1993
+    # tariffs_policy is combined final and intermediate good tariffs for 2005
+    # tariffs__hat is a matrix of all ones
+    tariffs_policy = tariffs_
+    tariffs__hat = tariffs_policy/tariffs_
 
-    tau.to_csv("tmp_tau.csv")
-    tau_hat.to_csv("tmp_tau_hat.csv")
-    taup.to_csv("tmp_tau_p.csv")
+    tariffs_.to_csv("tmp_tariffs_.csv")
+    tariffs__hat.to_csv("tmp_tariffs__hat.csv")
+    tariffs_policy.to_csv("tmp_tariffs__p.csv")
 
-    return tau_hat, tau, taup
+    return tariffs__hat, tariffs_, tariffs_policy
 
-tau_hat, tau, taup = Tariffs()
+tariffs__hat, tariffs_, tariffs_policy = Tariffs()
 
 # Iceberg model. Exporting country must ship more than is expected to arrive in the importer (a percentage of the exports melt away during transport).  In addition,
 # there is the cost of the tariff.  Formula
@@ -146,29 +146,29 @@ def readParameters():
 
     # Thetas, dispersion of productivity
     # Twenty values, one for each final industry, however, 8.22 is used for the intermediate goods
-    T = pd.read_csv(r"data\original_data\T.txt", sep="\t", header=None)
-    T = 1/T
-    T_df = pd.Series([1]*20).T
-    T_df = T_df *1/8.22
-    T = pd.concat([T, T_df])
-    T.to_csv("tmp_T.csv")
+    Thetas = pd.read_csv(r"data\original_data\T.txt", sep="\t", header=None)
+    Thetas = 1/Thetas
+    Thetas_df = pd.Series([1]*20).T
+    Thetas_df = Thetas_df *1/8.22
+    Thetas = pd.concat([Thetas, Thetas_df])
+    Thetas.to_csv("tmp_Thetas.csv")
     # add product names, all 40
-    T.index = products_all
+    Thetas.index = products_all
 
-    return IO_share, Value_Added_Share, GrossOutput, T
+    return IO_share, Value_Added_Share, GrossOutput, Thetas
 
-IO_share, Value_Added_Share, GrossOutput, T = readParameters()
+IO_share, Value_Added_Share, GrossOutput, Thetas = readParameters()
 
-def calculateExpenditures(xbilat1993, tau):
+def calculateExpenditures(xbilat1993, tariffs_):
     # calculating expenditures
-    xbilat1993 = xbilat1993 * tau
+    xbilat1993 = xbilat1993 * tariffs_
     #print("Expenditures \n",xbilat1993)
 
     return xbilat1993
 
-xbilat = calculateExpenditures(xbilat1993, tau)
+xbilat = calculateExpenditures(xbilat1993, tariffs_)
 
-def domesticSales(xbilat, tau, GrossOutput):
+def domesticSales(xbilat, tariffs_, GrossOutput):
 
     #################################################
     # Gross Output = GDP (Value added) + intermediate production
@@ -179,19 +179,20 @@ def domesticSales(xbilat, tau, GrossOutput):
     # Domestic sales
     X = pd.DataFrame(0, index=products_all, columns=Countries)
 
-    # tau is the tariff matrix in percentage form
-    xbilat_domestic = xbilat/tau
+    # tariffs_ is the tariff matrix in values
+    xbilat_domestic = xbilat/tariffs_
 
     xbilat_domestic.to_csv("tmpxbilat_domestic.csv")
     #print("bilat domestic \n", xbilat_domestic)
 
+    # X is the total value of exports for each product per country
     for i in products_all:
         product = [x for x in xbilat_domestic.index if x.startswith(i)]
 
         # sum of exports
         X.loc[i] = xbilat_domestic.loc[product].sum(axis=0)
 
-    # is X intermediate goods? I think so
+    # X is exports
     lst = [X, GrossOutput]
 
     X.to_csv("tmp_X.csv")
@@ -214,13 +215,16 @@ def domesticSales(xbilat, tau, GrossOutput):
     GrossOutput_tmp.to_csv("tmp_GrossOutput_tmp.csv")
 
     # Gross Output - Exports
+    # Exports are valued at gross value added!!!!!!!!!!
+    # Domestic sales are the remaining gross value added output after exports
+    ##################################
     domsales = GrossOutput_tmp - X
-
-    #print("domestic sales :\n", domsales)
+    domsales.to_csv("tmp_domsales.csv")
+    ##################################
 
     return domsales, domsales.T
 
-domsales, domsales_aux = domesticSales(xbilat, tau, GrossOutput)
+domsales, domsales_aux = domesticSales(xbilat, tariffs_, GrossOutput)
 
 # Bilateral trade matrix
 
@@ -232,10 +236,13 @@ def bilateral_trade_matrix(domsales_aux, xbilat):
 
     sections = []
     for i in products_all:
+        # select domestic sales for one product
         country1 = domsales_aux[i]
         product = [x for x in aux2.index if i in x]
 
-        #print(aux2.loc[product, :])
+        ###########################
+        # This calculates NN, so gross output used/consumed in own country
+        ###########################
         section = aux2.loc[product, :]
 
         np.fill_diagonal(section.values, country1.values)
@@ -243,9 +250,12 @@ def bilateral_trade_matrix(domsales_aux, xbilat):
 
     all_aux = pd.concat(sections)
 
+    ##############
     # combine internal and external trade
-
+    ##############
     xbilat = all_aux + xbilat
+
+    xbilat.to_csv("tmp_xbilat_100.csv")
 
     return xbilat
 
@@ -256,15 +266,19 @@ def cumulcativeExpenditures(xbilat):
     A = xbilat.T.sum(axis=0)
     #print("A: \n", A)
 
-    X0 = pd.DataFrame(0, index=products_all, columns=Countries)
+    ############
+    # Cummulative_Expenditures is total expenditures + exports
+    ############
+
+    Cummulative_Expenditures = pd.DataFrame(0, index=products_all, columns=Countries)
 
     for i in products_all:
         product = [x for x in A.index if i in x]
-        X0.loc[i,:] = A.loc[product].values
+        Cummulative_Expenditures.loc[i,:] = A.loc[product].values
 
-    return X0
+    return Cummulative_Expenditures
 
-X0 = cumulcativeExpenditures(xbilat)
+Cummulative_Expenditures = cumulcativeExpenditures(xbilat)
 
 
 def calculateExpenditureShares(xbilat):
@@ -277,35 +291,49 @@ def calculateExpenditureShares(xbilat):
     for i in np.arange(N):
         Xjn.iloc[:,i-1] = Xjn_values.values
 
-    Din = xbilat/Xjn
+    ###############
+    # Calculating Expenditure shares
+    ###############
 
-    return Din
+    ###############
+    # xbilat include own consumption
+    ###############
 
-Din = calculateExpenditureShares(xbilat)
+    Expenditure_shares = xbilat/Xjn
+
+    Expenditure_shares.to_csv("tmp_Expenditure_shares.csv")
+
+    return Expenditure_shares
+
+Expenditure_shares = calculateExpenditureShares(xbilat)
 
 
-def calcSuperavits(xbilat, tau):
+def calcSuperavits(xbilat, tariffs_):
 
-    # tau is tariffs
+    # tariffs_ is tariffs
     # xbilat is the bilateral trade matrix, values
 
     # Calculating superavits
     # are these the values after tariffs are applied?
-    # tau is greater than or equal to 1, so xbilattau will be less than or equal to xbilat, value
-    # so xbilattau < xbilat for foreign countries, internally, value will be the same
+    # tariffs_ is greater than or equal to 1, so xbilattariffs_ will be less than or equal to xbilat, value
+    # so xbilattariffs_ < xbilat for foreign countries, internally, value will be the same
 
-    xbilattau=xbilat/tau
+    # xbilat is all expenditures
+    # xbilattariffs_ is all expenditures reduced by tariffs, own = 1, others greater than one, so 
+    # these are the values after applying tariffs
+    xbilattariffs_ = xbilat / tariffs_
+    xbilattariffs_.to_csv("tmp_xbilattariffs_.csv")
 
     # M are imports!
     M = pd.DataFrame(0, index=products_all, columns=Countries)
    
     for i in products_all:
-        wantThese = [x for x in xbilattau.index if i in x]
+        wantThese = [x for x in xbilattariffs_.index if i in x]
         
         # selecting rows e.g. Agriculture_ARG, sum across all country columns,
         # so imports from each country and the production in own country
         # select all agriculture rows
-        sum1 = xbilattau.loc[wantThese, :]
+        sum1 = xbilattariffs_.loc[wantThese, :]
         # M contains the sum of values for each product, e.g. Agriculture on row and sum for each country on the columns
         # The sum of values per sector at foreign prices going to each country
         M.loc[i,:] = sum1.sum(axis=1).T.values
@@ -315,11 +343,13 @@ def calcSuperavits(xbilat, tau):
     E = pd.DataFrame(0, index=products_all, columns=Countries)
 
     for i in products_all:
-        wantThese = [x for x in xbilattau.index if i in x]
-        sum1 = xbilattau.loc[wantThese, :]
+        wantThese = [x for x in xbilattariffs_.index if i in x]
+        sum1 = xbilattariffs_.loc[wantThese, :]
         # Exports to each country
         E.loc[i,:] = sum1.sum(axis=0).values
 
+
+    # What is E, I think domestic expenditures at tariff adjusted prices
     E.to_csv("tmp_E.csv")
     Sn = E.sum(axis=0) - M.sum(axis=0)
 
@@ -328,7 +358,7 @@ def calcSuperavits(xbilat, tau):
    
     return M, E, Sn
 
-M, E, Sn = calcSuperavits(xbilat, tau)
+M, E, Sn = calcSuperavits(xbilat, tariffs_)
 
 
 def valueAdded(GrossOutput, Value_Added_Share):
@@ -342,9 +372,9 @@ def valueAdded(GrossOutput, Value_Added_Share):
 
 VAn =valueAdded(GrossOutput, Value_Added_Share)
 
-def moreValAdded(X0,IO_share,Value_Added_Share,E):
+def moreValAdded(Cummulative_Expenditures,IO_share,Value_Added_Share,E):
 
-    # X0 cummulative expenditures
+    # Cummulative_Expenditures cummulative expenditures
     # IO_share, IO table, intermediate goods, shares
     # Value_Added_Share value added, shares
     # E domestic sales
@@ -353,7 +383,7 @@ def moreValAdded(X0,IO_share,Value_Added_Share,E):
     for i in Countries:
         wantThese = [x for x in IO_share.index if i in x]
 
-        x1 =  X0.loc[:,i].values.reshape(-1,1)
+        x1 =  Cummulative_Expenditures.loc[:,i].values.reshape(-1,1)
         x2 = IO_share.loc[wantThese,:]
         x3 = Value_Added_Share.loc[:,i].values.reshape(-1,1)
         x4 = E.loc[:,i].values.reshape(-1,1)
@@ -363,18 +393,18 @@ def moreValAdded(X0,IO_share,Value_Added_Share,E):
         df1.loc[:,i] = x6.values
 
     return df1
-num = moreValAdded(X0,IO_share,Value_Added_Share,E)
+num = moreValAdded(Cummulative_Expenditures,IO_share,Value_Added_Share,E)
 
 
-def alphas(X0, Din, tau, VAn, Sn):
+def alphas(Cummulative_Expenditures, Expenditure_shares, tariffs_, VAn, Sn):
 
     F = pd.DataFrame(0, index=products_all, columns=Countries)
     for f in products_all:
-        wantThese = [x for x in Din.index if f in x]
-        F.loc[f, :] = (Din.loc[wantThese, :]/tau.loc[wantThese, :]).sum(axis=1).values
+        wantThese = [x for x in Expenditure_shares.index if f in x]
+        F.loc[f, :] = (Expenditure_shares.loc[wantThese, :]/tariffs_.loc[wantThese, :]).sum(axis=1).values
 
     # alphas
-    a1 = (X0*(1-F)).sum(axis=0).values.reshape(1,31)
+    a1 = (Cummulative_Expenditures*(1-F)).sum(axis=0).values.reshape(1,31)
     a2 = Sn
     a3 = VAn + a1.T - a2
     a4 = np.repeat(a3.T, repeats=40, axis=0)
@@ -390,20 +420,20 @@ def alphas(X0, Din, tau, VAn, Sn):
 
     return alphas
 
-alphas = alphas(X0, Din, tau, VAn, Sn)
+alphas = alphas(Cummulative_Expenditures, Expenditure_shares, tariffs_, VAn, Sn)
 #print("alphas: ", alphas)
 
 #####################################
 # Main Equilibrium Function
 #####################################
 # Definitions of parameters
-# tau_hat: (1240,31), original tariff position, matrix of ones
-# taup: (1240,31), new tariff position, matrix of values to one or slightly greater
+# tariffs__hat: (1240,31), original tariff position, matrix of ones
+# tariffs_policy: (1240,31), new tariff position, matrix of values to one or slightly greater
 # alphas: (40,31), not sure what these are
-# T (thetas), dispersion of productivity
+# Thetas (thetas), dispersion of productivity
 # Value_Added_Share (40,31), share of value added
 # IO_share (1240,40), IO coefficients
-# Din (1240,31), expenditure shares
+# Expenditure_shares (1240,31), expenditure shares
 # J number of products, 40
 # N number of countries, 31
 # maxit 1E+10
@@ -417,10 +447,10 @@ alphas = alphas(X0, Din, tau, VAn, Sn)
 ### PH
 ###################################
 
-def PH(wages_N,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol):
+def PH(wages_N,tariffs__hat,Thetas,Value_Added_Share,IO_share,Expenditure_shares,J,N,maxit,tol):
 
     # reformat theta vector
-    LT = np.repeat(T, repeats=N, axis=0)
+    LThetas = np.repeat(Thetas, repeats=N, axis=0)
 
     # initizlize vectors of ex-post wages and price factors
     wf0 = wages_N
@@ -453,9 +483,9 @@ def PH(wages_N,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol):
 
         #####################
         c = np.exp(lc)
-        x7 = np.repeat(LT, repeats=N, axis=1)
-        x8 = tau_hat**x7
-        Din_om = Din * x8
+        x7 = np.repeat(LThetas, repeats=N, axis=1)
+        x8 = tariffs__hat**x7
+        Expenditure_shares_om = Expenditure_shares * x8
         ######################
 
         phat = pd.DataFrame(0, index=products_all, columns=Countries)        
@@ -463,13 +493,13 @@ def PH(wages_N,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol):
         for j in np.arange(J):
             for n in np.arange(N):
                  rows1 = n + j*N
-                 x9 = Din_om.iloc[rows1,].values.reshape(1,-1)
+                 x9 = Expenditure_shares_om.iloc[rows1,].values.reshape(1,-1)
                  ##print(x9)
 
                  x10 = c.iloc[j,:].values.reshape(1,-1)
                  ##print(x10)
 
-                 x11 = T.iloc[j].values.reshape(1,-1)
+                 x11 = Thetas.iloc[j].values.reshape(1,-1)
                  ##print(x11)
 
                  x12 = (x10**(-1/x11)).T
@@ -496,24 +526,24 @@ def PH(wages_N,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol):
     return pf0, c
 
 
-def Dinprime(Din, tau_hat, c, T, J, N):
+def Expenditure_sharesprime(Expenditure_shares, tariffs__hat, c, Thetas, J, N):
 
     #####
     rows1 = [x + "_" + y for x in products_all  for y in Countries]
-    data = np.repeat(T.values.reshape(-1,1), repeats=N, axis=0)
-    LT = pd.Series(data.flatten(), index=rows1, name="LP")
+    data = np.repeat(Thetas.values.reshape(-1,1), repeats=N, axis=0)
+    LThetas = pd.Series(data.flatten(), index=rows1, name="LP")
 
     #####
     cp = pd.DataFrame(0, index = products_all, columns = Countries)
     for i, country in enumerate(Countries):
         y1 = c.iloc[:,i].values
-        y2 = (-1/T.values.flatten())
+        y2 = (-1/Thetas.values.flatten())
         cp.iloc[:,i] = y1**y2
 
     #####
-    x0 = np.repeat(LT.values.reshape(-1,1), repeats=N, axis=1)
-    x1 = tau_hat**(-1/x0)
-    Din_om = np.multiply(Din.values, x1)
+    x0 = np.repeat(LThetas.values.reshape(-1,1), repeats=N, axis=1)
+    x1 = tariffs__hat**(-1/x0)
+    Expenditure_shares_om = np.multiply(Expenditure_shares.values, x1)
    
     ######
     idx = list(range(0, (J*N), N))
@@ -521,24 +551,24 @@ def Dinprime(Din, tau_hat, c, T, J, N):
     DD = pd.DataFrame(0, index=rows1, columns=Countries)
     for i in range(0, N):
         idex = [x+i for x in idx]
-        DD.iloc[idex, :] = Din_om.iloc[idex, :].values * cp
+        DD.iloc[idex, :] = Expenditure_shares_om.iloc[idex, :].values * cp
 
     ######
-    phat = (DD.T.sum(axis=0).T)**(1/LT)
+    phat = (DD.T.sum(axis=0).T)**(1/LThetas)
     phat = phat.values.reshape(-1,1)
 
 
     ######
-    Dinp = pd.DataFrame(0, index=rows1, columns=Countries)
+    Expenditure_sharesp = pd.DataFrame(0, index=rows1, columns=Countries)
     for i in range(0, N):
-        x1 = phat**(1/LT.values.reshape(-1,1))
-        Dinp.iloc[:, i] = DD.iloc[:, i].values.reshape(-1,1) * x1
+        x1 = phat**(1/LThetas.values.reshape(-1,1))
+        Expenditure_sharesp.iloc[:, i] = DD.iloc[:, i].values.reshape(-1,1) * x1
 
 
     ######
-    return Dinp
+    return Expenditure_sharesp
 
-def expenditure(alphas,Value_Added_Share,IO_share,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
+def expenditure(alphas,Value_Added_Share,IO_share,Expenditure_sharesp,tariffs_policy,Fp,VAn,wf0,Sn,J,N):
 
     IA = pd.DataFrame(0, index=np.arange(J*N), columns=np.arange(J*N)) 
     I_F = 1 - Fp.values
@@ -553,14 +583,12 @@ def expenditure(alphas,Value_Added_Share,IO_share,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
 
     ########
 
-    Pit = Dinp/taup
+    Pit = Expenditure_sharesp/tariffs_policy
 
     rows1 = [x + "_" + y for x in products_all  for y in Countries]
     Value_Added_Sharet = 1-Value_Added_Share
     Value_Added_ShareP = pd.DataFrame(0, index=rows1, columns=Countries)
 
-
- 
     for i in range(0, J):
         x1 = np.kron(np.ones(N,), Value_Added_Sharet.iloc[i,:]).reshape(N,N)
         x2 = Pit.iloc[i*N:(i+1)*N, :].values.reshape(N,N)
@@ -603,33 +631,33 @@ def expenditure(alphas,Value_Added_Share,IO_share,Dinp,taup,Fp,VAn,wf0,Sn,J,N):
 
     return PQ
 
-def LMC(Xp, Dinp, J, N, Value_Added_Share, VAL):
+def LMC(Xp, Expenditure_sharesp, J, N, Value_Added_Share, VAL):
 
     PQ_vec = Xp.T.reshape(J*N,1, order='F')
     
     rows1 = [x + "_" + y for x in products_all  for y in Countries]
     
-    DDinput = pd.DataFrame(0, index=rows1, columns=Countries)
+    DExpenditure_sharesput = pd.DataFrame(0, index=rows1, columns=Countries)
     for i in range(0, N):
-        x1 = Dinp.iloc[:,i].values.reshape(-1,1)
+        x1 = Expenditure_sharesp.iloc[:,i].values.reshape(-1,1)
         x2 = PQ_vec
-        DDinput.iloc[:, i] = np.multiply(x1, x2)
+        DExpenditure_sharesput.iloc[:, i] = np.multiply(x1, x2)
 
-    DDinput.to_csv('tmp_DDinput.csv', index=False)
+    DExpenditure_sharesput.to_csv('tmp_DExpenditure_sharesput.csv', index=False)
 
-    DDDinput = pd.DataFrame(0, index=products_all, columns=Countries)
+    DDExpenditure_sharesput = pd.DataFrame(0, index=products_all, columns=Countries)
     for n in range(0, J):
-        x1 = DDinput.iloc[n*N:(n+1)*N, :].values.reshape(N, -1)
-        DDDinput.iloc[n, :] = x1.sum(axis=0)
+        x1 = DExpenditure_sharesput.iloc[n*N:(n+1)*N, :].values.reshape(N, -1)
+        DDExpenditure_sharesput.iloc[n, :] = x1.sum(axis=0)
 
-    aux4 = np.multiply(Value_Added_Share, DDDinput)
+    aux4 = np.multiply(Value_Added_Share, DDExpenditure_sharesput)
     aux5 = aux4.sum(axis=0)
     wf0 = np.multiply((1/VAL), aux5.values.reshape(-1,1))
     
     return wf0
 
 
-def equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N, maxit, tol, VAn, Sn, vfactor):
+def equilibrium(tariffs__hat, tariffs_policy, alphas, Thetas, Value_Added_Share, IO_share, Expenditure_shares, J, N, maxit, tol, VAn, Sn, vfactor):
 
     wf0 = np.ones((N, 1))
     wfmax = 1
@@ -637,15 +665,15 @@ def equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N
 
     while (e <= maxit) and (wfmax > tol):
 
-        pf0,c = PH(wf0,tau_hat,T,Value_Added_Share,IO_share,Din,J,N,maxit,tol)
+        pf0,c = PH(wf0,tariffs__hat,Thetas,Value_Added_Share,IO_share,Expenditure_shares,J,N,maxit,tol)
 
         # #print("pf0 :\n", pf0, pf0.shape)
         # #print("c :\n", c)
 
-        # Dinp Calculate trade shares
-        Dinp = Dinprime(Din, tau_hat,c,T,J,N)
-        Dinp_om = Dinp/taup
-        #print("Dinp_om: \n", Dinp_om, Dinp_om.shape)
+        # Expenditure_sharesp Calculate trade shares
+        Expenditure_sharesp = Expenditure_sharesprime(Expenditure_shares, tariffs__hat,c,Thetas,J,N)
+        Expenditure_sharesp_om = Expenditure_sharesp/tariffs_policy
+        #print("Expenditure_sharesp_om: \n", Expenditure_sharesp_om, Expenditure_sharesp_om.shape)
 
         # Fp
         Fp = pd.DataFrame(0, index=products_all, columns=Countries)
@@ -653,14 +681,14 @@ def equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N
     
         for enum, i in enumerate(rows1):
             #print("i: ", i)
-            Fp.iloc[enum,:] = (Dinp.iloc[i:i+31,:]/taup.iloc[i:i+31,:]).T.sum()
+            Fp.iloc[enum,:] = (Expenditure_sharesp.iloc[i:i+31,:]/tariffs_policy.iloc[i:i+31,:]).T.sum()
         #print("Fp :\n", Fp)
 
-        PQ = expenditure(alphas,Value_Added_Share,IO_share,Dinp,taup,Fp,VAn,wf0,Sn,J,N)
+        PQ = expenditure(alphas,Value_Added_Share,IO_share,Expenditure_sharesp,tariffs_policy,Fp,VAn,wf0,Sn,J,N)
 
         #print("PQ: :", PQ, PQ.shape)
 
-        wf1 = LMC(PQ, Dinp, J, N, Value_Added_Share, VAn)
+        wf1 = LMC(PQ, Expenditure_sharesp, J, N, Value_Added_Share, VAn)
 
         # Excess function
         ZW = wf1 - wf0
@@ -670,7 +698,7 @@ def equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N
         rows1 = [x + "_" + y for x in products_all  for y in Countries]
         DP = pd.DataFrame(0, index=rows1, columns=Countries)
         for n in range(0, N):
-            DP.iloc[:,n] = np.multiply(Dinp_om.iloc[:,n].values.reshape(-1,1), PQ_vec)
+            DP.iloc[:,n] = np.multiply(Expenditure_sharesp_om.iloc[:,n].values.reshape(-1,1), PQ_vec)
 
         LHS = DP.sum(axis=0).T.values.reshape(-1,1)
 
@@ -696,27 +724,27 @@ def equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N
 
         e += 1
 
-        return wf0, pf0, PQ, Fp, Dinp, ZW, Snp
+        return wf0, pf0, PQ, Fp, Expenditure_sharesp, ZW, Snp
 
 ##############################
 ##############################
 ##############################
 
-wf0, pf0, PQ, Fp, Dinp, ZW, Snp = equilibrium(tau_hat, taup, alphas, T, Value_Added_Share, IO_share, Din, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
+wf0, pf0, PQ, Fp, Expenditure_sharesp, ZW, Snp = equilibrium(tariffs__hat, tariffs_policy, alphas, Thetas, Value_Added_Share, IO_share, Expenditure_shares, J, N, maxit, tol, VAn/100000, Sn/100000, vfactor)
 
 
 # expenditures Xji in long vector: PQ_vec=(X11 X12 X13...)' 
 print("wf0: \n", wf0)
 
 PQ_vec = PQ.T.reshape(1, J*N, order='F')
-Dinp_om = Dinp/taup
+Expenditure_sharesp_om = Expenditure_sharesp/tariffs_policy
 
-xbilattau = np.multiply(Dinp_om, np.multiply(PQ_vec.T, np.ones(N)))
-xbilatp = np.multiply(xbilattau, taup)
+xbilattariffs_ = np.multiply(Expenditure_sharesp_om, np.multiply(PQ_vec.T, np.ones(N)))
+xbilatp = np.multiply(xbilattariffs_, tariffs_policy)
 xbilatp.to_csv("tmp_xbilatpx.csv")
 
 for j in range(J):
-    GrossOutput.iloc[j:, :] = xbilattau.iloc[j*N:(j+1)*N, :].sum()
+    GrossOutput.iloc[j:, :] = xbilattariffs_.iloc[j*N:(j+1)*N, :].sum()
 
 print("GrossOutput: \n", GrossOutput, GrossOutput.shape)
 
@@ -728,7 +756,7 @@ for n in range(J):
     
 
 pd.DataFrame.to_csv(xbilatp, "xbilatp.csv")
-pd.DataFrame.to_csv(Dinp, "Dinp.csv")
-pd.DataFrame.to_csv(xbilattau, "xbilattau.csv")
+pd.DataFrame.to_csv(Expenditure_sharesp, "Expenditure_sharesp.csv")
+pd.DataFrame.to_csv(xbilattariffs_, "xbilattariffs_.csv")
 pd.DataFrame.to_csv(alphas, "alphas.csv")
 pd.DataFrame.to_csv(GrossOutput, "GrossOutput.csv")
